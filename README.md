@@ -5,7 +5,7 @@ This project fetches Open-Meteo forecast data, evaluates **daylight-only** flyin
 ## Folder structure
 - `fpv_board/main.py` - complete updater application (config load, API client, scoring, drawing, caching).
 - `fpv_board/config.json` - editable runtime config (location, units, thresholds, update tolerances).
-- `requirements.txt` - Python dependencies (`requests`, `Pillow`).
+- `requirements.txt` - Python dependencies (`requests`, `Pillow`, `gpiozero`).
 - `systemd/fpv-board.service` - one-shot unit that runs updater as user `pi`.
 - `systemd/fpv-board.timer` - hourly schedule trigger.
 
@@ -15,6 +15,13 @@ This project fetches Open-Meteo forecast data, evaluates **daylight-only** flyin
 sudo apt update
 sudo apt install -y python3 python3-venv python3-pip git libopenjp2-7 libtiff6 libjpeg62-turbo
 sudo raspi-config nonint do_spi 0
+sudo reboot
+```
+
+After reboot, reconnect and continue:
+
+```bash
+ls /dev/spidev0.0 /dev/spidev0.1
 ```
 
 Create install directory and virtual environment:
@@ -35,7 +42,7 @@ Install Waveshare Python e-Paper library:
 ```bash
 cd /opt/fpv-board
 git clone https://github.com/waveshare/e-Paper.git waveshare-lib
-pip install RPi.GPIO spidev
+pip install RPi.GPIO spidev gpiozero
 export PYTHONPATH="/opt/fpv-board/waveshare-lib/RaspberryPi_JetsonNano/python/lib:${PYTHONPATH}"
 ```
 
@@ -104,8 +111,3 @@ journalctl -u fpv-board.service -n 100 --no-pager
 - **Wrong pins / BUSY stuck**: verify HAT seated correctly and BUSY maps to GPIO24.
 - **Font missing**: defaults to PIL font automatically; adjust `font_*` paths in config if needed.
 - **Import error for Waveshare module**: confirm `PYTHONPATH` includes Waveshare `python/lib` directory.
-- **Ghosting/slow refresh**: raise tolerance values in `update.change_tolerance` and avoid unnecessary timer intervals.
-- **Partial refresh artefacts**: this model is run with full refresh each update to avoid severe tri-colour artefacts.
-
-- **`SyntaxError: '{' was never closed` when starting**: the deployed `fpv_board/main.py` is incomplete/corrupted on disk (or your viewer wrapped/truncated lines); verify with `python3 -m py_compile /opt/fpv-board/fpv_board/main.py` and `sed -n "40,60p" /opt/fpv-board/fpv_board/main.py`, then redeploy a clean copy from git (`git pull` or recopy the file) before restarting the service.
-- **File appears truncated (e.g., starts around line ~48 and ends near ~291)**: confirm the deployed file includes the tail section by running `grep -n "def run(config_path" /opt/fpv-board/fpv_board/main.py` and `grep -n "if __name__ == \"__main__\":" /opt/fpv-board/fpv_board/main.py`; if either is missing, redeploy the file from git and restart.
