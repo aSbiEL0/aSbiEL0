@@ -106,3 +106,6 @@ journalctl -u fpv-board.service -n 100 --no-pager
 - **Import error for Waveshare module**: confirm `PYTHONPATH` includes Waveshare `python/lib` directory.
 - **Ghosting/slow refresh**: raise tolerance values in `update.change_tolerance` and avoid unnecessary timer intervals.
 - **Partial refresh artefacts**: this model is run with full refresh each update to avoid severe tri-colour artefacts.
+
+- **`SyntaxError: '{' was never closed` when starting**: the deployed `fpv_board/main.py` is incomplete/corrupted on disk (or your viewer wrapped/truncated lines); verify with `python3 -m py_compile /opt/fpv-board/fpv_board/main.py` and `sed -n "40,60p" /opt/fpv-board/fpv_board/main.py`, then redeploy a clean copy from git (`git pull` or recopy the file) before restarting the service.
+- **File appears truncated (e.g., starts around line ~48 and ends near ~291)**: confirm the deployed file includes the tail section by running `grep -n "def run(config_path" /opt/fpv-board/fpv_board/main.py` and `grep -n "if __name__ == \"__main__\":" /opt/fpv-board/fpv_board/main.py`; if either is missing, redeploy the file from git and restart.

@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 MS_PER_MPH = 0.44704
 KPH_PER_MS = 3.6
+DISPLAY_STATE_VERSION = 2
 
 
 @dataclass
@@ -312,6 +313,7 @@ def build_display_state(result: dict[str, Any], cfg: dict[str, Any]) -> dict[str
     tol = cfg["update"]["change_tolerance"]
     w = result.get("worst", {})
     return {
+        "version": DISPLAY_STATE_VERSION,
         "status": result["status"],
         "reason": result["reason"],
         "trend": result["trend"],
@@ -342,9 +344,10 @@ def states_equal(a: dict[str, Any] | None, b: dict[str, Any]) -> bool:
 
 
 def show_on_epaper(black: Image.Image, red: Image.Image, model_path: str) -> None:
-    mod_name, cls_name = model_path.rsplit(".", 1)
-    module = __import__(mod_name, fromlist=[cls_name])
-    epd = getattr(module, cls_name)()
+    mod_name, attr_name = model_path.rsplit(".", 1)
+    module = __import__(mod_name, fromlist=[attr_name])
+    epd_factory = getattr(module, attr_name)
+    epd = epd_factory() if callable(epd_factory) else getattr(epd_factory, "EPD")()
 
     epd.init()
     epd.Clear()
@@ -395,7 +398,10 @@ def run(config_path: Path, dry_run: bool) -> int:
         else:
             logging.info("No meaningful change; skipped refresh")
 
-    save_state(cache_file, display_state)
+    if not dry_run:
+        save_state(cache_file, display_state)
+    else:
+        logging.info("Dry-run mode: state cache write skipped")
     return 0
 
 

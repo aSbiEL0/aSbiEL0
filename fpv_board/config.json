@@ -6,7 +6,7 @@
     "timezone": "auto"
   },
   "display": {
-    "model": "waveshare_epd.epd2in15b_V2",
+    "model": "waveshare_epd.epd2in15b.EPD",
     "width": 296,
     "height": 160,
     "use_red_for_nope": true,
