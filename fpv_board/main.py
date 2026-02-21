@@ -19,7 +19,6 @@ import requests
 from PIL import Image, ImageDraw, ImageFont
 
 MS_PER_MPH = 0.44704
-KPH_PER_MS = 3.6
 DISPLAY_STATE_VERSION = 2
 
 
@@ -253,14 +252,51 @@ def load_font(path: str, size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageF
         return ImageFont.load_default()
 
 
-def pick_icon(status: str) -> str:
-    return {
-        "GREAT": "😎",
-        "OK": "🙂",
-        "MARGINAL": "😬",
-        "NOPE": "☹",
-    }.get(status, "?")
 
+def draw_status_icon(draw: ImageDraw.ImageDraw, status: str, center: tuple[int, int], radius: int) -> None:
+    cx, cy = center
+    draw.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), outline=0, width=4)
+
+    eye_r = 4
+    draw.ellipse((cx - 14 - eye_r, cy - 9 - eye_r, cx - 14 + eye_r, cy - 9 + eye_r), fill=0)
+    draw.ellipse((cx + 14 - eye_r, cy - 9 - eye_r, cx + 14 + eye_r, cy - 9 + eye_r), fill=0)
+
+    if status == "GREAT":
+        draw.arc((cx - 22, cy - 6, cx + 22, cy + 22), start=20, end=160, fill=0, width=4)
+    elif status == "OK":
+        draw.line((cx - 18, cy + 14, cx + 18, cy + 14), fill=0, width=4)
+    elif status == "MARGINAL":
+        draw.arc((cx - 20, cy - 20, cx - 10, cy - 10), start=200, end=320, fill=0, width=3)
+        draw.arc((cx + 10, cy - 20, cx + 20, cy - 10), start=220, end=340, fill=0, width=3)
+        zig = [
+            (cx - 24, cy + 14),
+            (cx - 16, cy + 6),
+            (cx - 8, cy + 14),
+            (cx, cy + 6),
+            (cx + 8, cy + 14),
+            (cx + 16, cy + 6),
+            (cx + 24, cy + 14),
+        ]
+        draw.line(zig, fill=0, width=4)
+    else:  # NOPE
+        draw.arc((cx - 22, cy + 6, cx + 22, cy + 30), start=200, end=340, fill=0, width=4)
+
+
+def draw_colored_segments(
+    draw_black: ImageDraw.ImageDraw,
+    draw_red: ImageDraw.ImageDraw,
+    y: int,
+    segments: list[tuple[str, bool]],
+    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
+    width: int,
+) -> None:
+    text_widths = [draw_black.textbbox((0, 0), text, font=font)[2] for text, _ in segments]
+    x = max(8, (width - sum(text_widths)) // 2)
+    for (text, is_red), seg_width in zip(segments, text_widths):
+        target = draw_red if is_red else draw_black
+        target.text((x, y), text, font=font, fill=0)
+        x += seg_width
+        
 
 def render_image(result: dict[str, Any], now: datetime, cfg: dict[str, Any]) -> tuple[Image.Image, Image.Image]:
     width = int(cfg["display"]["width"])
@@ -271,15 +307,14 @@ def render_image(result: dict[str, Any], now: datetime, cfg: dict[str, Any]) -> 
     draw_b = ImageDraw.Draw(black)
     draw_r = ImageDraw.Draw(red)
 
-    regular = load_font(cfg["display"]["font_regular"], 16)
-    bold = load_font(cfg["display"]["font_bold"], 40)
-    small = load_font(cfg["display"]["font_regular"], 13)
+    status_font = load_font(cfg["display"]["font_bold"], 56)
+    metrics_font = load_font(cfg["display"]["font_bold"], 13)
+    trend_font = load_font(cfg["display"]["font_bold"], 13)
 
     status = result["status"]
     status_draw = draw_r if (status == "NOPE" and cfg["display"].get("use_red_for_nope", True)) else draw_b
-    status_draw.text((8, 6), status, font=bold, fill=0)
-
-    draw_b.text((232, 10), pick_icon(status), font=regular, fill=0)
+    status_draw.text((14, 8), status, font=status_font, fill=0)
+    draw_status_icon(draw_b, status, center=(236, 42), radius=35)
 
     w = result.get("worst", {})
     wind_ms = float(w.get("wind_ms", 0.0))
@@ -287,19 +322,26 @@ def render_image(result: dict[str, Any], now: datetime, cfg: dict[str, Any]) -> 
     rain = int(round(float(w.get("rain", 0.0))))
     temp_c = float(w.get("temp_min", 0.0))
 
-    wind_kmh = wind_ms * KPH_PER_MS
-    gust_kmh = gust_ms * KPH_PER_MS
+    is_nope = status == "NOPE" and cfg["display"].get("use_red_for_nope", True)
+    draw_b.line((8, 80, width - 8, 80), fill=0, width=1)
+    draw_b.line((8, 106, width - 8, 106), fill=0, width=1)
 
-    row = (
-        f"W {wind_ms:0.1f}m/s {wind_kmh:0.0f}km/h"
-        f" | G {gust_ms:0.1f}/{gust_kmh:0.0f}"
-        f" | R {rain}% | T {temp_c:0.1f}°C"
-    )
-    draw_b.text((8, 86), row, font=small, fill=0)
+    metric_segments = [
+        (f"Wind {wind_ms:0.1f} m/s", is_nope),
+        (" | ", False),
+        (f"Gust {gust_ms:0.1f}", False),
+        (" | ", False),
+        (f"Rain {rain}%", is_nope),
+        (" | ", False),
+        (f"{temp_c:0.0f}°C", is_nope),
+    ]
+    draw_colored_segments(draw_b, draw_r, 88, metric_segments, metrics_font, width)
 
-    draw_b.text((8, 108), f"Reason: {result['reason']}", font=small, fill=0)
-    draw_b.text((8, 126), result["trend"], font=small, fill=0)
-    draw_b.text((8, 144), f"Updated: {now.strftime('%Y-%m-%d %H:%M')}", font=small, fill=0)
+    trend_color = draw_r if is_nope else draw_b
+    trend_text = result["trend"]
+    trend_width = draw_b.textbbox((0, 0), trend_text, font=trend_font)[2]
+    trend_x = max(8, (width - trend_width) // 2)
+    trend_color.text((trend_x, 118), trend_text, font=trend_font, fill=0)
     return black, red
 
 
