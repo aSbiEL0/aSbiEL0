@@ -309,7 +309,7 @@ def render_image(result: dict[str, Any], now: datetime, cfg: dict[str, Any]) -> 
 
     status_font = load_font(cfg["display"]["font_bold"], 56)
     metrics_font = load_font(cfg["display"]["font_bold"], 13)
-    trend_font = load_font(cfg["display"]["font_bold"], 15)
+    trend_font = load_font(cfg["display"]["font_bold"], 18)
 
     status = result["status"]
     status_draw = draw_r if (status == "NOPE" and cfg["display"].get("use_red_for_nope", True)) else draw_b
@@ -323,8 +323,8 @@ def render_image(result: dict[str, Any], now: datetime, cfg: dict[str, Any]) -> 
     temp_c = float(w.get("temp_min", 0.0))
 
     is_nope = status == "NOPE" and cfg["display"].get("use_red_for_nope", True)
-    draw_b.line((8, 83, width - 8, 83), fill=0, width=1)
-    draw_b.line((8, 109, width - 8, 109), fill=0, width=1)
+    draw_b.line((8, 90, width - 8, 90), fill=0, width=1)
+    draw_b.line((8, 118, width - 8, 118), fill=0, width=1)
 
     metric_segments = [
         (f"Wind {wind_ms:0.1f} m/s", is_nope),
@@ -335,13 +335,13 @@ def render_image(result: dict[str, Any], now: datetime, cfg: dict[str, Any]) -> 
         (" | ", False),
         (f"{temp_c:0.0f}°C", is_nope),
     ]
-    draw_colored_segments(draw_b, draw_r, 91, metric_segments, metrics_font, width)
+    draw_colored_segments(draw_b, draw_r, 99, metric_segments, metrics_font, width)
 
     trend_color = draw_r if is_nope else draw_b
     trend_text = result["trend"]
     trend_width = draw_b.textbbox((0, 0), trend_text, font=trend_font)[2]
     trend_x = max(8, (width - trend_width) // 2)
-    trend_color.text((trend_x, 124), trend_text, font=trend_font, fill=0)
+    trend_color.text((trend_x, 136), trend_text, font=trend_font, fill=0)
     return black, red
 
 
