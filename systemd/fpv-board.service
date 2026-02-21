@@ -1,0 +1,18 @@
+[Unit]
+Description=FPV Flight Board updater
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pi
+WorkingDirectory=/opt/fpv-board
+Environment=PYTHONPATH=/opt/fpv-board/waveshare-lib/RaspberryPi_JetsonNano/python/lib
+ExecStartPre=/opt/fpv-board/.venv/bin/python -m py_compile /opt/fpv-board/fpv_board/main.py
+ExecStartPre=/opt/fpv-board/.venv/bin/python -c "from pathlib import Path; s=Path('/opt/fpv-board/fpv_board/main.py').read_text(); assert 'def run(config_path: Path, dry_run: bool) -> int:' in s and 'if __name__ == \"__main__\":' in s"
+ExecStart=/opt/fpv-board/.venv/bin/python -m fpv_board.main --config /opt/fpv-board/fpv_board/config.json
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
